@@ -1,0 +1,10 @@
+// arithmetic.tng — math, comparisons, comprehensions
+
+val nums = [1, 2, 3, 4, 5]
+val doubled = for (n in nums) n * 2
+val evens = filter(nums) { n -> n % 2 == 0 }
+
+print("nums:    ${show(nums)}")
+print("doubled: ${show(doubled)}")
+print("evens:   ${show(evens)}")
+print("sum:     ${fold(nums, 0) { acc, n -> acc + n }}")

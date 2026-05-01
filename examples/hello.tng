@@ -1,0 +1,6 @@
+// hello.tng — greeting
+
+fn greet(name: String): Unit =
+  print("Hello, $name!")
+
+greet("Teanga")

@@ -1,0 +1,15 @@
+// closures.tng — first-class functions
+
+fn adder(n: Number): Function = { x -> x + n }
+
+val add3 = adder(3)
+val add10 = adder(10)
+
+print(add3(5))    // 8
+print(add10(5))   // 15
+
+// composition
+fn compose(f: Function, g: Function): Function = { x -> f(g(x)) }
+
+val incThenDouble = compose({ x -> x * 2 }, { x -> x + 1 })
+print(incThenDouble(4))   // (4+1)*2 = 10

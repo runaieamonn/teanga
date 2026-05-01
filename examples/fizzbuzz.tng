@@ -1,0 +1,9 @@
+// fizzbuzz.tng — classic, in Teanga
+
+fn fizzbuzz(n: Number): String =
+  if (n % 15 == 0) "FizzBuzz"
+  else if (n % 3 == 0) "Fizz"
+  else if (n % 5 == 0) "Buzz"
+  else show(n)
+
+forEach(range(1, 21)) { n -> print(fizzbuzz(n)) }

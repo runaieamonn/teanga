@@ -1,0 +1,20 @@
+// records.tng — structural records, field access, pattern matching
+
+val alice = { name: "Alice", age: 30, role: "engineer" }
+val bob   = { name: "Bob",   age: 25, role: "designer" }
+
+fn describe(p: { name: String, role: String }): Unit =
+  print("${p.name} is a ${p.role}")
+
+forEach([alice, bob]) { p -> describe(p) }
+
+// pattern matching on record shape
+fn handleResult(r: Object): String = when (r) {
+  is { tag: "ok", value }    -> "ok: ${show(value)}"
+  is { tag: "err", message } -> "error: $message"
+  else                       -> "unknown"
+}
+
+print(handleResult({ tag: "ok",  value: 42 }))
+print(handleResult({ tag: "err", message: "boom" }))
+print(handleResult({ tag: "what" }))
