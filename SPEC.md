@@ -45,11 +45,24 @@ fn listTodos(): IO<Unit> = do {
 
 - **No assignment.** `val` binds once.
 - **`if` requires `else`.** A conditional without both branches is a compile error.
-- **`for` is comprehension.** `for (x in xs) e` has type `[E]`. To run effects per
-  element, use `forEach`.
+- **`for` is comprehension.** `for (x in xs) e` has type `[E]`. The body is a
+  single expression; for multiple statements, use `for (x in xs) do { ... }`.
+  To run effects per element, use `forEach` (a stdlib function), not `for`.
 - **Definitions evaluate to `Unit`.**
 - **Lazy.** Values are computed on demand. Effects in `IO` are executed eagerly
   by the runtime when the `IO` is run.
+
+## Operators
+
+| Group | Operators |
+|---|---|
+| Arithmetic | `+`, `-`, `*`, `/`, `%` |
+| Comparison | `<`, `>`, `<=`, `>=`, `==`, `!=` |
+| Logical | `&&`, `\|\|`, `!` |
+| Nullable | `?.` (safe call), `?:` (Elvis) |
+| Concat | `+` on `String`, `+` on `[T]` |
+
+Equality (`==` / `!=`) is structural for records and arrays.
 
 ## Types
 
@@ -57,7 +70,7 @@ fn listTodos(): IO<Unit> = do {
 |---|---|---|
 | Primitives | `Number`, `String`, `Bool`, `Null` | `Number` is f64. |
 | Arrays | `[T]` | Lazy sequences. |
-| Records | `{ k1: T1, k2: T2 }` | **Structural.** No declaration required. |
+| Records | `{ k1: T1, k2: T2 }` | **Structural.** No declaration required. Shorthand `{ name }` means `{ name: name }`. |
 | Functions | `T -> U` | First-class, curried. |
 | Effects | `IO<T>` | Description of an effectful computation. |
 | Nullable | `T?` | Kotlin-style. `?.`, `?:`, smart casts. No `Maybe`. |
@@ -67,6 +80,20 @@ fn listTodos(): IO<Unit> = do {
 before comparison.
 
 **No sum types.** Errors propagate via exceptions. (Re-evaluate at v0.2.)
+
+## Lambdas and method-style calls
+
+```
+{ x -> x + 1 }                    // single parameter
+{ x, y -> x + y }                 // multiple parameters
+{ it * 2 }                        // single param, implicitly named `it`
+xs.map { it * 2 }                 // trailing-lambda sugar
+xs.fold(0) { acc, x -> acc + x }  // trailing lambda after parens
+```
+
+`x.f(args)` first looks for `f` as a record field on `x`. If not found and `f`
+is a function in scope, it desugars to `f(x, args)`. This lets `xs.map { ... }`
+and `map(xs, ...)` mean the same thing without requiring user-defined methods.
 
 ## Effects and concurrency
 
@@ -96,7 +123,8 @@ Stdlib partitioned into `common` (everywhere) and platform modules.
 - Literals: `1`, `"ok"`, `true`, `null`
 - Record shapes: `{ tag: "ok", value }`
 - Array shapes: `[]`, `[x, ...rest]`
-- Type guards: `is String`, `is Number`
+- Type guards: `is Number`, `is String`, `is Bool`, `is Null`,
+  `is Array`, `is Object`, `is Function`, `is IO`
 
 ## Tooling commitments
 
