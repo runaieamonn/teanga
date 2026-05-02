@@ -24,7 +24,9 @@ stepping stone.
 - `throw` / `try` / `catch`
 - Structural equality on records and arrays
 - Built-ins: `print`, `length`, `range`, `map`, `filter`, `fold`,
-  `forEach`, `typeof`, `keys`, `show`, `readLine`
+  `forEach`, `typeof`, `keys`, `show`, `readLine`, `readFile`, `args`,
+  `charCode`, `chr`, `isDigit`, `isAlpha`, `isAlnum`, `isSpace`,
+  `substring`, `parseNumber`
 
 ### What's deferred
 
@@ -42,8 +44,27 @@ stepping stone.
 ```bash
 python3 teanga.py examples/hello.tng
 python3 teanga.py examples/fizzbuzz.tng
-python3 tests/run_tests.py     # 29 tests
+python3 tests/run_tests.py            # 29 interpreter tests
+python3 tests/test_self_host.py       # self-hosted lexer parity test
 ```
+
+## Self-hosting
+
+`teanga.tng` is a Teanga program that lexes Teanga source — the same way
+`teanga.py` does. They produce identical token streams:
+
+```bash
+python3 teanga.py --lex   examples/closures.tng    # reference
+python3 teanga.py teanga.tng examples/closures.tng # self-hosted, same output
+```
+
+This is a proof-of-concept for the v0.1 subset. Open gaps:
+
+- The Teanga lexer can't yet lex itself — without TCO, recursion blows
+  Python's stack on inputs much larger than ~1500 tokens.
+- The Teanga lexer doesn't handle string interpolation or block comments;
+  the test corpus avoids both.
+- Only the lexer is self-hosted. The parser and evaluator are still Python.
 
 ## A taste
 

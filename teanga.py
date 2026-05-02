@@ -13,6 +13,10 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+# Pure-functional Teanga programs (lacking TCO) can recurse once per source
+# character. Raise the host limit so they can chew through real-sized inputs.
+sys.setrecursionlimit(50000)
+
 # ============================================================
 # LEXER
 # ============================================================
@@ -962,22 +966,74 @@ def install_builtins(env: Env) -> None:
         try: return input()
         except EOFError: return None
 
-    env.set("print",   b_print)
-    env.set("length",  b_len)
-    env.set("range",   b_range)
-    env.set("map",     b_map)
-    env.set("filter",  b_filter)
-    env.set("fold",    b_fold)
-    env.set("forEach", b_forEach)
-    env.set("typeof",  b_typeof)
-    env.set("keys",    b_keys)
-    env.set("show",    b_show)
-    env.set("readLine",b_readLine)
+    def b_readFile(interp, args):
+        with open(args[0]) as f:
+            return f.read()
+
+    def b_args(interp, args):
+        return list(_program_argv)
+
+    def b_charCode(interp, args):
+        s = args[0]
+        if not isinstance(s, str) or len(s) == 0: return -1.0
+        return float(ord(s[0]))
+
+    def b_chr(interp, args):
+        return chr(int(args[0]))
+
+    def b_isDigit(interp, args):
+        s = args[0]
+        return isinstance(s, str) and len(s) == 1 and s.isdigit()
+
+    def b_isAlpha(interp, args):
+        s = args[0]
+        return isinstance(s, str) and len(s) == 1 and (s.isalpha() or s == "_")
+
+    def b_isAlnum(interp, args):
+        s = args[0]
+        return isinstance(s, str) and len(s) == 1 and (s.isalnum() or s == "_")
+
+    def b_isSpace(interp, args):
+        s = args[0]
+        return isinstance(s, str) and len(s) == 1 and s.isspace()
+
+    def b_substring(interp, args):
+        s, start, end = args
+        return s[int(start):int(end)]
+
+    def b_parseNumber(interp, args):
+        try: return float(args[0])
+        except (ValueError, TypeError): return None
+
+    env.set("print",       b_print)
+    env.set("length",      b_len)
+    env.set("range",       b_range)
+    env.set("map",         b_map)
+    env.set("filter",      b_filter)
+    env.set("fold",        b_fold)
+    env.set("forEach",     b_forEach)
+    env.set("typeof",      b_typeof)
+    env.set("keys",        b_keys)
+    env.set("show",        b_show)
+    env.set("readLine",    b_readLine)
+    env.set("readFile",    b_readFile)
+    env.set("args",        b_args)
+    env.set("charCode",    b_charCode)
+    env.set("chr",         b_chr)
+    env.set("isDigit",     b_isDigit)
+    env.set("isAlpha",     b_isAlpha)
+    env.set("isAlnum",     b_isAlnum)
+    env.set("isSpace",     b_isSpace)
+    env.set("substring",   b_substring)
+    env.set("parseNumber", b_parseNumber)
 
 
 # ============================================================
 # DRIVER
 # ============================================================
+
+_program_argv: list[str] = []
+
 
 def run_file(path: str) -> Any:
     with open(path) as f:
@@ -991,12 +1047,41 @@ def run_source(src: str) -> Any:
     return Interp().run(program)
 
 
+def fmt_token(tok: Tok) -> str:
+    """Stable serialization of a token for diffable output."""
+    if tok.kind == "STR_INTERP":
+        # Render parts so two implementations can match.
+        body = ",".join(
+            (f's:{repr(v)}' if k == "str" else f'e:{repr(v)}')
+            for k, v in tok.value
+        )
+        return f"STR_INTERP [{body}] {tok.line}"
+    return f"{tok.kind} {show_val(tok.value)} {tok.line}"
+
+
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: teanga.py <file.tng>", file=sys.stderr)
+    global _program_argv
+    argv = sys.argv[1:]
+    if not argv:
+        print("usage: teanga.py [--lex] <file.tng> [args...]", file=sys.stderr)
         return 2
+    if argv[0] == "--lex":
+        if len(argv) != 2:
+            print("usage: teanga.py --lex <file.tng>", file=sys.stderr)
+            return 2
+        try:
+            with open(argv[1]) as f:
+                src = f.read()
+            for tok in lex(src):
+                print(fmt_token(tok))
+            return 0
+        except (SyntaxError, OSError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+    file_arg = argv[0]
+    _program_argv = argv[1:]
     try:
-        run_file(sys.argv[1])
+        run_file(file_arg)
         return 0
     except (SyntaxError, NameError, RuntimeError, TeangaError) as e:
         print(f"error: {e}", file=sys.stderr)

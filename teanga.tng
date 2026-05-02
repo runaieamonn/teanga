@@ -1,0 +1,114 @@
+// teanga.tng — self-hosted Teanga lexer (proof-of-concept subset).
+//
+// Run as:  python3 teanga.py teanga.tng <input.tng>
+// Output: one token per line, identical to `python3 teanga.py --lex <input.tng>`.
+//
+// Limitations vs the reference Python lexer:
+//   * No string interpolation: `$` inside a string is literal.
+//   * No block comments (the `/* ... */` form).
+// The test corpus avoids both of these so the outputs match exactly.
+
+val KEYWORDS = ["val", "fn", "if", "else", "when", "is", "do", "for", "in",
+                "true", "false", "null", "return", "public", "namespace",
+                "import", "throw", "try", "catch"]
+
+val TWO_CHAR_OPS = ["==", "!=", "<=", ">=", "&&", "||", "->", "?:", "?."]
+
+fn isKeyword(word: String): Bool =
+  fold(KEYWORDS, false) { acc, kw -> acc || kw == word }
+
+fn isOpChar(c: String): Bool =
+  c == "+" || c == "-" || c == "*" || c == "/" || c == "%"
+  || c == "<" || c == ">" || c == "=" || c == "!" || c == "?"
+
+fn isPunctChar(c: String): Bool =
+  c == "(" || c == ")" || c == "{" || c == "}"
+  || c == "[" || c == "]" || c == "," || c == ":"
+  || c == ";" || c == "."
+
+fn isTwoCharOp(s: String): Bool =
+  fold(TWO_CHAR_OPS, false) { acc, op -> acc || op == s }
+
+fn mkTok(kind: String, value: Object, line: Number): Object =
+  { kind: kind, value: value, line: line }
+
+fn peek(src: String, i: Number): String =
+  if (i >= length(src)) "" else src[i]
+
+// --- main lex loop ---
+
+fn lex(src: String): [Object] = lexLoop(src, 0, 1, [])
+
+fn lexLoop(src: String, i: Number, line: Number, acc: [Object]): [Object] =
+  if (i >= length(src)) acc + [mkTok("EOF", null, line)]
+  else lexNext(src, i, line, acc)
+
+fn lexNext(src: String, i: Number, line: Number, acc: [Object]): [Object] =
+  if (src[i] == "\n") lexLoop(src, i + 1, line + 1, acc)
+  else if (isSpace(src[i])) lexLoop(src, i + 1, line, acc)
+  else if (src[i] == "/" && peek(src, i + 1) == "/") lexLineComment(src, i + 2, line, acc)
+  else if (isDigit(src[i])) lexNumber(src, i, i, line, acc)
+  else if (src[i] == "\"") lexString(src, i + 1, line, acc, "")
+  else if (isAlpha(src[i])) lexIdent(src, i, i, line, acc)
+  else lexOp(src, i, line, acc)
+
+fn lexLineComment(src: String, i: Number, line: Number, acc: [Object]): [Object] =
+  if (i >= length(src)) acc + [mkTok("EOF", null, line)]
+  else if (src[i] == "\n") lexLoop(src, i + 1, line + 1, acc)
+  else lexLineComment(src, i + 1, line, acc)
+
+fn lexNumber(src: String, start: Number, i: Number, line: Number, acc: [Object]): [Object] =
+  if (i < length(src) && (isDigit(src[i]) || src[i] == "."))
+    lexNumber(src, start, i + 1, line, acc)
+  else
+    lexLoop(src, i, line, acc + [mkTok("NUM", parseNumber(substring(src, start, i)), line)])
+
+fn escapeChar(c: String): String =
+  if (c == "n") "\n"
+  else if (c == "t") "\t"
+  else if (c == "\"") "\""
+  else if (c == "\\") "\\"
+  else c
+
+fn lexString(src: String, i: Number, line: Number, acc: [Object], buf: String): [Object] =
+  if (i >= length(src)) throw "unterminated string"
+  else if (src[i] == "\"") lexLoop(src, i + 1, line, acc + [mkTok("STR", buf, line)])
+  else if (src[i] == "\\" && i + 1 < length(src))
+    lexString(src, i + 2, line, acc, buf + escapeChar(src[i + 1]))
+  else lexString(src, i + 1, line, acc, buf + src[i])
+
+fn lexIdent(src: String, start: Number, i: Number, line: Number, acc: [Object]): [Object] =
+  if (i < length(src) && isAlnum(src[i]))
+    lexIdent(src, start, i + 1, line, acc)
+  else lexLoop(src, i, line, acc + [identTok(substring(src, start, i), line)])
+
+fn identTok(word: String, line: Number): Object =
+  if (word == "true") mkTok("BOOL", true, line)
+  else if (word == "false") mkTok("BOOL", false, line)
+  else if (word == "null") mkTok("NULL", null, line)
+  else if (isKeyword(word)) mkTok("KW", word, line)
+  else mkTok("ID", word, line)
+
+fn lexOp(src: String, i: Number, line: Number, acc: [Object]): [Object] =
+  if (i + 1 < length(src) && isTwoCharOp(substring(src, i, i + 2)))
+    lexLoop(src, i + 2, line, acc + [mkTok("OP", substring(src, i, i + 2), line)])
+  else if (isOpChar(src[i]))
+    lexLoop(src, i + 1, line, acc + [mkTok("OP", src[i], line)])
+  else if (isPunctChar(src[i]))
+    lexLoop(src, i + 1, line, acc + [mkTok("PUNCT", src[i], line)])
+  else throw "unexpected character: " + src[i] + " at line " + show(line)
+
+// --- output (matches teanga.py's --lex format) ---
+
+fn showVal(v: Object): String =
+  if (typeof(v) == "String") "\"" + v + "\""
+  else show(v)
+
+fn printToken(t: Object): Unit =
+  print(t.kind + " " + showVal(t.value) + " " + show(t.line))
+
+// --- entry point ---
+
+val a = args()
+if (length(a) == 0) print("usage: teanga teanga.tng <file.tng>")
+else forEach(lex(readFile(a[0]))) { t -> printToken(t) }
